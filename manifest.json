@@ -1,0 +1,18 @@
+{
+    "name": "SillyTavern-DeepSeek-Balance",
+    "display_name": "DeepSeek 余额",
+    "loading_order": 50,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "Ushio155",
+    "version": "0.2.0",
+    "homePage": "https://github.com/Ushio155/SillyTavern-DeepSeek-Balance",
+    "auto_update": false,
+    "minimum_client_version": "1.11.0",
+    "hooks": {
+        "enable": "onEnable",
+        "disable": "onDisable"
+    }
+}

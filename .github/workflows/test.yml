@@ -1,0 +1,39 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dev dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Unit tests + static security audit + jsdom integration
+        run: npm test
+
+      - name: Verify manifest points at real files
+        run: |
+          node -e "
+            const fs = require('fs');
+            const m = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+            for (const f of [m.js, m.css]) {
+              if (!fs.existsSync(f)) { console.error('missing ' + f); process.exit(1); }
+            }
+            console.log('manifest ok:', m.name, m.version);
+          "

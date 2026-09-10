@@ -1,0 +1,21 @@
+{
+    "name": "sillytavern-deepseek-balance",
+    "version": "0.2.0",
+    "private": true,
+    "type": "module",
+    "description": "SillyTavern extension that shows the DeepSeek account balance above the chat input box",
+    "license": "MIT",
+    "author": "Ushio155",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Ushio155/SillyTavern-DeepSeek-Balance.git"
+    },
+    "scripts": {
+        "test": "node --test tests/lib.test.mjs tests/static-audit.test.mjs tests/dom.test.mjs",
+        "test:local": "node --test --experimental-test-isolation=none tests/lib.test.mjs tests/static-audit.test.mjs tests/dom.test.mjs",
+        "smoke": "node tests/live-smoke.mjs"
+    },
+    "devDependencies": {
+        "jsdom": "^26.0.0"
+    }
+}
