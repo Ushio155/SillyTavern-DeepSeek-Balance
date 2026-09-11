@@ -9,7 +9,7 @@
     "author": "Ushio155",
     "version": "0.2.1",
     "homePage": "https://github.com/Ushio155/SillyTavern-DeepSeek-Balance",
-    "auto_update": false,
+    "auto_update": true,
     "minimum_client_version": "1.11.0",
     "hooks": {
         "enable": "onEnable",
