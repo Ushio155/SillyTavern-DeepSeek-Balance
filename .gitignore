@@ -2,3 +2,7 @@
 node_modules/
 .npm-cache/
 *.log
+
+# 开发期调研/探测脚本：硬编码了本机凭据文件路径，属个人环境信息，默认不发布。
+# 想发布的话去掉这一行再提交即可（见 research/README.md）。
+research/
