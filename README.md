@@ -1,18 +1,20 @@
 # SillyTavern-DeepSeek-Balance · DeepSeek 余额
 
-在 **输入框（对话框）左端上方**显示 DeepSeek 账户余额的 SillyTavern 扩展。
+在**输入框里额外扩展一行**显示 DeepSeek 账户余额的 SillyTavern 扩展。
 
 ```
-● DeepSeek ¥12.22 ↻        ← 就在 #send_form（输入框）正上方那一行，左对齐
 ┌──────────────────────────────────────────────┐
-│ 在这里输入消息…                                │
+│ ● DeepSeek ¥12.22 ↻                          │ ← 输入框里多出来的这一行（无分隔线）
+│ [☰] 在这里输入消息…                      [➤] │ ← 原本的输入行
 └──────────────────────────────────────────────┘
 ```
 
+- 余额行就是 `#send_form`（输入框那个框）**内部的第一行**，和输入行共用同一个边框、同一层毛玻璃底色 ——
+  外观上就是输入框自己扩展出来的一行，而不是浮在框外面的小胶囊
 - 点余额徽标 → 详情弹窗（总额 / 赠送 / 充值 / 较上次变化 / 查询时间 / 密钥来源）
 - 点 `↻` → 立即刷新
 - 扩展设置里是 **ST 标准可折叠抽屉**（和其他扩展一样的标题栏 + 折叠箭头），标题栏右侧直接显示当前余额，不用展开也能看
-- 余额低于阈值时徽标变红
+- 余额低于阈值时整行变红
 
 只用 DeepSeek，不需要任何服务端插件或 API 中转。
 
@@ -50,7 +52,7 @@
 | 扩展设置（推荐） | 扩展设置 → **DeepSeek 余额** → API 密钥 → 填入 `sk-...` → 保存密钥 | 不需要改酒馆配置，不需要重启；密钥以混淆形式存在 `settings.json` 的 `extension_settings` 里 |
 | 酒馆密钥库 | 在 `config.yaml` 里把 `allowKeysExposure` 改成 `true` 并重启，然后在「连接」里填好 DeepSeek 密钥 | 扩展会读 `api_key_deepseek`。**默认关闭**：`/api/secrets/find` 会返回 403，此时界面显示中性的「未配置密钥」（不是报错） |
 
-> 没配密钥时余额条不会发任何请求，也不会报红——只是显示「未配置密钥」，点开弹窗里有操作指引。
+> 没配密钥时余额行不会发任何请求，也不会报红——只是显示「未配置密钥」，点开弹窗里有操作指引。
 
 ---
 
@@ -77,7 +79,7 @@
 | 定时器 | 默认 60 秒（可调 10–86400 秒；失败时指数退避，最多 10 分钟一次） |
 | `GENERATION_ENDED` | 每次 AI 回复结束后防抖 2.5 秒再查一次——余额刚变化，这才是真正"跟着用"的刷新 |
 | 标签页重新可见 | 数据超过 30 秒才查，切回来就是新的 |
-| 手动 | 点余额条旁的 `↻`，或设置面板里的「立即查询」/标题栏刷新按钮 |
+| 手动 | 点余额行里的 `↻`，或设置面板里的「立即查询」/标题栏刷新按钮 |
 
 ---
 
@@ -90,7 +92,28 @@
 | 间隔（秒） | 60 | 限 10–86400 |
 | 低余额告警阈值 | 10 | 余额低于它时徽标变红并提示充值；**填 0 = 关闭告警** |
 | 每次生成结束后自动刷新 | 开 | 即上面的 `GENERATION_ENDED` |
-| 显示刷新按钮 | 开 | 关掉后输入框上方的 `↻` 隐藏（设置面板里的按钮仍在） |
+| 显示刷新按钮 | 开 | 关掉后输入框里那一行的 `↻` 隐藏（设置面板里的按钮仍在） |
+
+---
+
+## 外观怎么调
+
+余额行完全由 `style.css` 控制，全部走 ST 主题变量（`--SmartTheme*` / `--mainFontSize`），不写死颜色，
+换主题会自动跟着变。想微调的话：
+
+| 想改什么 | 改哪里 |
+|---|---|
+| 加一条和输入行之间的细分割线 | 加回 `.ds-balance-bar--inline::after`（默认**不加**，整行无痕融进输入框）：`content:''; position:absolute; left:0; right:0; bottom:0; height:1px; background-color: var(--SmartThemeBorderColor, currentColor); opacity:.5; pointer-events:none;` |
+| 余额离输入行多远 | `.ds-balance-bar--inline` 里的 `--ds-balance-row-drop`（用负下边距把输入行往上拉；上限约 3px，再大会压到输入行顶部的生成进度条） |
+| 余额离输入框顶边多远 | 同一个规则里的 `--ds-balance-row-top`（调大 = 整行下移，但输入框会等高变高，**不改变**和输入行的距离） |
+| 左右留白 | `.ds-balance-bar--inline` 的 `padding` 第 2、4 个值 |
+| 字号（默认 `--mainFontSize × 0.85`） | `.ds-balance-bar` 的 `font-size` |
+| 让文字对齐到输入框正文那一列 | 给 `.ds-balance-bar--inline` 加 `padding-left: calc(13px + var(--bottomFormBlockSize, 34px))` |
+| 低余额 / 失败的颜色 | `.ds-balance-bar.is-low` / `.is-error`（已接 `--progErrorColor`） |
+| 分隔线的浓淡（加回上面那条线时） | `.ds-balance-bar--inline::after` 的 `opacity`（默认 0.5） |
+
+> 为什么状态色加在"行"上而不是胶囊上：框内那一行把胶囊的边框去掉了，没有边框可以变红，
+> 所以颜色必须写在行上、再靠 `color` 继承给文字和圆点（`tests/static-audit.test.mjs` 会守住这条）。
 
 ---
 
@@ -128,7 +151,7 @@ URL、`localStorage`。日志只保留 `console.warn/info`，且不打印任何�
 
 ## 测试
 
-56 项测试，零运行时依赖（只有开发期的 jsdom）：
+58 项测试，零运行时依赖（只有开发期的 jsdom）：
 
 ```bash
 npm install        # 装 jsdom（仅测试用）
@@ -139,8 +162,8 @@ npm run smoke      # 实网烟囱测试，需要环境变量 DEEPSEEK_API_KEY，
 | 文件 | 覆盖内容 |
 |---|---|
 | `tests/lib.test.mjs` | 密钥混淆往返、篡改检测、设置净化（含原型污染）、请求构造、响应规范化、错误分类、文本清洗、视图计算 |
-| `tests/static-audit.test.mjs` | 危险 sink 扫描（`eval` / `new Function` / `document.write` / `innerHTML` 插值）、fetch 目标白名单、`Authorization` 只出现一次且只在 `buildBalanceRequest` 里、日志纪律、`lib.js` 保持纯净、仓库里不得出现真实密钥或酒馆用户数据文件、CSS 不外链 |
-| `tests/dom.test.mjs` | 在 jsdom 里真的加载 `index.js`：余额条位置（`#form_sheld` 内、`#send_form` 之前）、抽屉结构符合 ST 折叠约定、保存密钥→查询→渲染全流程、密钥不进 DOM、生成结束防抖、标题栏刷新按钮不冒泡、错误文本不当成 HTML |
+| `tests/static-audit.test.mjs` | 危险 sink 扫描（`eval` / `new Function` / `document.write` / `innerHTML` 插值）、fetch 目标白名单、`Authorization` 只出现一次且只在 `buildBalanceRequest` 里、日志纪律、`lib.js` 保持纯净、仓库里不得出现真实密钥或酒馆用户数据文件、CSS 不外链、CSS 里"框内那一行"保持一体式且状态色落在行本身 |
+| `tests/dom.test.mjs` | 在 jsdom 里真的加载 `index.js`：余额行位置（`#send_form` **内部第一行**，且输入行结构不被扰动）、`#send_form` 缺失时的兜底挂载、挂载幂等（重复 enable 不会插出两条）、抽屉结构符合 ST 折叠约定、保存密钥→查询→渲染全流程、密钥不进 DOM、生成结束防抖、停用后丢弃在途结果并不再轮询、标题栏刷新按钮不冒泡、错误文本不当成 HTML |
 
 `lib.js` 是纯函数层（不碰 DOM / 全局 / 网络），`index.js` 只做接线——这也是这些测试能覆盖到安全关键逻辑的原因。
 
@@ -164,8 +187,9 @@ npm run smoke      # 实网烟囱测试，需要环境变量 DEEPSEEK_API_KEY，
 | 显示「查询失败」+ `BAD_KEY` | 密钥错了或被禁用（401） |
 | `HTTP_429` | 请求太频繁，调大间隔 |
 | 「网络请求失败」 | 被跨域/代理/拦截插件挡住；确认浏览器能打开 `https://api.deepseek.com` |
-| 输入框上方没东西 | 页面没刷新（先硬刷新 Ctrl+Shift+R）；若仍没有，看控制台有没有模块加载错误 |
-| 想放回输入框内部 | 改 `index.js` 里 `mount()`：用兜底分支（`sendForm.insertBefore(bar, anchor)`）即可 |
+| 输入框里没有那一行 | 页面没刷新（先硬刷新 Ctrl+Shift+R，扩展脚本没有加 cache-busting 参数）；若仍没有，看控制台有没有模块加载错误 |
+| 那一行跑到输入框外面去了 | 说明 `#send_form` 当时还没渲染出来，走了 `index.js` 里 `mount()` 的兜底分支（`.ds-balance-bar--above`）；刷新页面即可，正常情况下不会发生 |
+| 想改那一行的样子 | 见上面「外观怎么调」 |
 
 ---
 

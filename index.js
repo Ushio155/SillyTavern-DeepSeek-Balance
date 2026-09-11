@@ -61,6 +61,7 @@ const { extensionSettings, saveSettingsDebounced, eventSource, eventTypes } = ct
 
 /** 运行时状态（不持久化） */
 const state = {
+    active: false,
     inFlight: false,
     failures: 0,
     result: null,
@@ -179,7 +180,7 @@ async function queryBalance() {
  * @param {{reason?: string}} [opts]
  */
 async function refresh(opts = {}) {
-    if (state.inFlight) return;
+    if (state.inFlight || !state.active) return;
 
     state.inFlight = true;
     render({ loading: true });
@@ -192,6 +193,10 @@ async function refresh(opts = {}) {
     } finally {
         state.inFlight = false;
     }
+
+    // 请求飞在半路时扩展被停用（onDisable）→ 结果直接丢掉：
+    // 既不再碰已经拆掉的界面，也不排下一轮 —— 否则停用后会一直偷偷轮询下去。
+    if (!state.active) return;
 
     if (result.ok) {
         const head = headline(result);
@@ -212,7 +217,7 @@ async function refresh(opts = {}) {
 function scheduleNext(ok) {
     clearTimeout(state.timer);
     const s = getSettings();
-    if (!s.autoRefresh) return;
+    if (!s.autoRefresh || !state.active) return;
 
     let intervalMs = s.intervalSec * 1000;
     if (!ok) {
@@ -224,14 +229,14 @@ function scheduleNext(ok) {
 }
 
 function scheduleGenerationRefresh() {
-    if (!getSettings().refreshOnGeneration) return;
+    if (!state.active || !getSettings().refreshOnGeneration) return;
     clearTimeout(state.genTimer);
     // 生成刚结束时上游余额可能还没结算，延迟一点再查
     state.genTimer = setTimeout(() => refresh({ reason: 'generation' }), GEN_DEBOUNCE_MS);
 }
 
 // ---------------------------------------------------------------------------
-// 界面：输入框上方的小条
+// 界面：输入框里额外那一行（余额条，挂在 #send_form 内部）
 // ---------------------------------------------------------------------------
 
 function buildBar() {
@@ -590,24 +595,47 @@ function toast(message, type = 'info') {
 // 挂载
 // ---------------------------------------------------------------------------
 
+/**
+ * 给余额行打上"放在哪儿"的标记，决定 CSS 走哪一套样式
+ * （框内一行 = 一体式；框外一条 = 旧的独立小条外观）
+ * @param {HTMLElement} bar
+ * @param {'inline'|'above'} mode
+ */
+function setBarPlacement(bar, mode) {
+    bar.classList.toggle('ds-balance-bar--inline', mode === 'inline');
+    bar.classList.toggle('ds-balance-bar--above', mode === 'above');
+}
+
 function mount() {
-    if (state.mounted && document.getElementById(BAR_ID)) return true;
-
-    const bar = document.getElementById(BAR_ID) || buildBar();
-    const formSheld = document.getElementById('form_sheld');
     const sendForm = document.getElementById('send_form');
+    const existing = document.getElementById(BAR_ID);
 
-    // 首选：插到 #send_form 之前 → 独立一行，落在输入框（对话框）正上方，左对齐
-    if (formSheld && sendForm && formSheld.contains(sendForm)) {
-        formSheld.insertBefore(bar, sendForm);
+    // 已经待在输入框里了 → 什么都不用做（挂载是幂等的，onEnable/重试都会走到这里）
+    if (existing && sendForm && existing.parentElement === sendForm) {
         state.mounted = true;
         return true;
     }
 
-    // 兜底：退回到输入框内部顶端（#nonQRFormItems 之前）
-    const anchor = document.getElementById('nonQRFormItems');
-    if (sendForm && anchor) {
-        sendForm.insertBefore(bar, anchor);
+    const bar = existing || buildBar();
+
+    // 首选：#send_form 内部的第一行。
+    // #send_form 本身就是 flex-wrap 容器（见 public/style.css），宽 100% 的子元素会自动独占一行，
+    // 所以余额行和输入行共用同一个带边框 + 毛玻璃底色的盒子 —— 外观上就是输入框多出来的一行。
+    // 布局顺序交给 CSS 的 order 管（余额行 order:-1，压过 #file_form:0 / #qr--bar:1 /
+    // #nonQRFormItems:25），因此这里用 prepend 就够：它是幂等的，重复调用不会插出第二份。
+    if (sendForm) {
+        sendForm.prepend(bar);
+        setBarPlacement(bar, 'inline');
+        state.mounted = true;
+        return true;
+    }
+
+    // 兜底：#send_form 还没渲染出来（index.html 里是静态节点，正常不会发生）。
+    // 退回旧行为 —— 先挂在 #form_sheld 顶部、用独立小条样式；下次 mount() 会把它挪进框内。
+    const formSheld = document.getElementById('form_sheld');
+    if (formSheld) {
+        formSheld.prepend(bar);
+        setBarPlacement(bar, 'above');
         state.mounted = true;
         return true;
     }
@@ -616,6 +644,7 @@ function mount() {
 }
 
 function mountWithRetry(attempt = 0) {
+    state.active = true;
     buildSettingsPanel();
 
     if (mount()) {
@@ -624,15 +653,20 @@ function mountWithRetry(attempt = 0) {
         return;
     }
     if (attempt < 40) {
-        setTimeout(() => mountWithRetry(attempt + 1), 250);
+        setTimeout(() => {
+            if (state.active) mountWithRetry(attempt + 1);
+        }, 250);
     } else {
-        console.warn('[ds-balance] 未找到 #form_sheld / #send_form，无法挂载余额条');
+        console.warn('[ds-balance] 未找到 #form_sheld / #send_form，无法挂载余额行');
     }
 }
 
 function cleanup() {
+    state.active = false;
     clearTimeout(state.timer);
     clearTimeout(state.genTimer);
+    state.timer = null;
+    state.genTimer = null;
     document.getElementById(BAR_ID)?.remove();
     document.getElementById(PANEL_ID)?.remove();
     state.mounted = false;

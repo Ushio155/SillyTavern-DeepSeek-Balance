@@ -7,7 +7,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "Ushio155",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "homePage": "https://github.com/Ushio155/SillyTavern-DeepSeek-Balance",
     "auto_update": false,
     "minimum_client_version": "1.11.0",

@@ -1,9 +1,9 @@
 {
     "name": "sillytavern-deepseek-balance",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "private": true,
     "type": "module",
-    "description": "SillyTavern extension that shows the DeepSeek account balance above the chat input box",
+    "description": "SillyTavern extension that shows the DeepSeek account balance in an extra row inside the chat input box",
     "license": "MIT",
     "author": "Ushio155",
     "repository": {

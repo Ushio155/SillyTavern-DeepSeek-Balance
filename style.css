@@ -1,25 +1,59 @@
-/* DeepSeek 余额 · 输入框上方的小条 + 扩展设置面板（ST 标准 inline-drawer）
+/* DeepSeek 余额 · 输入框里额外那一行 + 扩展设置面板（ST 标准 inline-drawer）
    全部走 ST 主题变量（--SmartTheme*），跟随酒馆配色，不写死颜色。 */
 
-/* ---------------- 输入框上方的小条 ---------------- */
+/* ---------------- 输入框里额外那一行 ---------------- */
 
+/* 基础排版：两种放置方式共用。
+   刻意不设 background —— 直接透出输入框自己的 BlurTint 底色，这样才像"一体"。 */
 .ds-balance-bar {
-    /* 挂在 #form_sheld 里、#send_form 之前：独占一行，落在输入框正上方左侧。
-       同时兼容兜底挂载（#send_form 内部）——那里是 flex-wrap 容器，占满一行即可。 */
-    flex: 0 0 100%;
-    width: 100%;
-    order: -1;
     display: flex;
     align-items: center;
     justify-content: flex-start;
     gap: 6px;
-    padding: 0 8px 3px 8px;
     box-sizing: border-box;
-    font-size: calc(var(--mainFontSize, 15px) * 0.78);
+    width: 100%;
+    max-width: 100%;
+    font-size: calc(var(--mainFontSize, 15px) * 0.85);
     line-height: 1.25;
     color: var(--SmartThemeBodyColor, #e6e6e6);
     white-space: nowrap;
     user-select: none;
+}
+
+/* 首选放置：挂在 #send_form 内部的第一行。
+   #send_form 本身就是 flex-wrap 容器（public/style.css:891），宽 100% 的子元素会自动独占一行，
+   于是这一行和输入行共用同一个边框 + 毛玻璃盒子 —— 外观上就是输入框上方多扩展出来的一行。
+   order:-1 保证它稳定排在最前：#file_form(0) → #qr--bar(1) → #nonQRFormItems(25)。 */
+.ds-balance-bar--inline {
+    position: relative;
+    order: -1;
+
+    /* ——— 间距就在这两个数上调，别的都不用动 ———
+       --ds-balance-row-top  ：这一行离输入框顶边多远。调大 = 整行下移，但输入框会等高变高，
+                               和输入行的相对距离不变（就是"调大了没效果、只有输入框变高"的原因）。
+       --ds-balance-row-drop ：让这一行"欠"掉多少高度 —— 负的下边距把下面的输入行往上拉，
+                               文字和输入行的距离才真正变近，而且输入框反而变矮。
+                               上限约 3px：再大就压到输入行自己那条 3px 生成进度条上了
+                               （进度条正好落在文字基线的位置），生成时会看到线从字脚穿过。 */
+    --ds-balance-row-top: 5px;
+    --ds-balance-row-drop: 3px;
+
+    /* align-self: flex-start 是必须的：负下边距会让这一行溢出它所在的那条 flex 线，
+       而 #send_form 默认 align-items: center 会上下对称溢出 —— 那样文字会被顶出输入框的上边框。
+       钉在 flex-start 上，溢出的部分就只往下走。 */
+    align-self: flex-start;
+    margin-bottom: calc(-1 * var(--ds-balance-row-drop));
+    padding: var(--ds-balance-row-top) 8px 0;
+}
+
+/* 内嵌分隔线（.ds-balance-bar--inline::after）已去掉：这一行现在完全无痕地融进输入框，
+   和输入行之间不再有线。想加回来见 README「外观怎么调」（用的是输入框自己的边框色 + opacity 0.5）。 */
+
+/* 兜底放置：#send_form 还没渲染时先挂在 #form_sheld 里，保持旧的独立小条外观 */
+.ds-balance-bar--above {
+    order: -1;
+    flex: 0 0 100%;
+    padding: 0 8px 3px 8px;
 }
 
 /* ---------------- 余额徽标（余额条里 + 设置标题栏里共用） ---------------- */
@@ -43,6 +77,16 @@
     opacity: 1;
     border-color: var(--SmartThemeQuoteColor, rgba(255, 255, 255, 0.45));
     outline: none;
+}
+
+/* 一体式（框内那一行）：胶囊不再自带边框和底色，就是输入框里的一行文字。
+   用 :where() 压住优先级 —— 刚好压过上面的基础样式，又不影响后面的状态色
+   （.ds-balance-chip.is-low / .is-error 等仍然照常生效）。 */
+:where(.ds-balance-bar--inline) .ds-balance-chip {
+    border: 0;
+    background: none;
+    padding: 0;
+    border-radius: 0;
 }
 
 /* 标题栏里的那个：跟随标题栏配色，不抢视觉、也不表现得像可点按钮 */
@@ -77,12 +121,26 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 18px;
-    height: 18px;
+    /* 用 em 而不是写死 18px：写死的话它比这一行的文字（约 15.9px 行盒）还高，
+       会把整行撑高 2px、文字被迫居中，看着就"悬在输入框上面"。
+       现在尺寸跟着字号走，行高由文字决定，余额自然贴近下面的输入行。 */
+    width: 1.25em;
+    height: 1.25em;
+    position: relative;
     border-radius: 50%;
     cursor: pointer;
     opacity: 0.6;
     transition: opacity var(--animation-duration, 0.15s) ease, transform var(--animation-duration, 0.15s) ease;
+}
+
+/* 尺寸收小后点击区也跟着小了，用伪元素把可点范围补回到 ~24px（绝对定位，不占布局） */
+.ds-balance-refresh::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    bottom: -4px;
+    left: -4px;
 }
 
 .ds-balance-refresh:hover,
@@ -90,6 +148,15 @@
     opacity: 1;
     outline: none;
     transform: rotate(60deg);
+}
+
+/* 框内那一行把胶囊边框去掉了，键盘焦点提示得单独补回来。
+   选择器刻意多带一层 .ds-balance-bar--inline（比上面几条 outline:none 更具体），否则会被压掉。 */
+.ds-balance-bar--inline .ds-balance-chip:focus-visible,
+.ds-balance-bar--inline .ds-balance-refresh:focus-visible {
+    outline: 1px dashed var(--SmartThemeQuoteColor, rgba(255, 255, 255, 0.45));
+    outline-offset: 2px;
+    border-radius: 3px;
 }
 
 /* 标题栏里的刷新按钮（menu_button 默认偏大，这里收紧） */
@@ -125,9 +192,32 @@
     opacity: 0.7;
 }
 
-/* 余额条自身也带同一组状态类（便于主题作者只改一处） */
+/* 余额行自身也带同一组状态类（便于主题作者只改一处）。
+   注意：框内那一行的胶囊边框已经被去掉，所以状态色必须落在"行"上，
+   靠 color 继承给里面的文字和圆点 —— 否则低余额/失败在输入框里根本看不出来。 */
 .ds-balance-bar.is-loading .ds-balance-chip {
     opacity: 0.5;
+}
+
+.ds-balance-bar.is-low,
+.ds-balance-bar.is-error {
+    color: var(--progErrorColor, #e5534b);
+}
+
+/* 圆点在告警时点满，别再说 0.7 的淡 */
+.ds-balance-bar.is-low .ds-balance-dot,
+.ds-balance-bar.is-error .ds-balance-dot {
+    opacity: 1;
+}
+
+/* 兜底挂载（框外独立小条）时胶囊还在，把边框色也补上，和以前保持一致 */
+.ds-balance-bar.is-low .ds-balance-chip,
+.ds-balance-bar.is-error .ds-balance-chip {
+    border-color: var(--progErrorColor, #e5534b);
+}
+
+.ds-balance-bar.is-error .ds-balance-chip {
+    border-style: dashed;
 }
 
 @keyframes ds-balance-pulse {
@@ -138,7 +228,15 @@
 /* 窄屏（手机）收紧一点 */
 @media screen and (max-width: 1000px) {
     .ds-balance-bar {
-        font-size: calc(var(--mainFontSize, 15px) * 0.72);
+        font-size: calc(var(--mainFontSize, 15px) * 0.78);
+    }
+
+    .ds-balance-bar--inline {
+        padding-left: 6px;
+        padding-right: 6px;
+    }
+
+    .ds-balance-bar--above {
         padding-left: 6px;
     }
 }

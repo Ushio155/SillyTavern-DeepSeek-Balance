@@ -15,6 +15,7 @@
  *   8) index.js 从 lib.js 导入的名字必须都真实存在
  *   9) 全仓库不出现形如真实 API 密钥的字符串
  *  10) CSS 不引用外部资源（无 @import / 远程 url()）
+ *  11) CSS 里"输入框里那一行"必须保持一体式（无独立底色），且状态色落在行本身而不是胶囊边框上
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -235,4 +236,28 @@ test('style.css 不引用任何外部资源', () => {
     assert.ok(!/url\(\s*['"]?https?:/i.test(CSS), '不引用远程资源');
     assert.ok(!/expression\s*\(/i.test(CSS));
     assert.ok(!/javascript:/i.test(CSS));
+});
+
+test('style.css：输入框里那一行必须保持"一体"，状态色不能只挂在胶囊边框上', () => {
+    // 框内那一行不能自带底色 —— 要透出输入框自己的 BlurTint，否则又变成"浮在框里的小条"
+    const inline = CSS.match(/\.ds-balance-bar--inline\s*\{[^}]*\}/);
+    assert.ok(inline, '应有 .ds-balance-bar--inline 规则');
+    assert.ok(!/background(-color)?\s*:/.test(inline[0]), '框内那一行不能自带底色');
+
+    // 去胶囊化必须用 :where() 压住优先级：压得过基础样式，又压不过后面的低余额/失败颜色
+    assert.match(
+        CSS,
+        /:where\(\.ds-balance-bar--inline\)\s+\.ds-balance-chip/,
+        '框内胶囊应用 :where() 去掉边框和底色（写死高优先级会把状态色一起压掉）',
+    );
+
+    // 状态色必须落在"行"本身上：框内已经没有胶囊边框可以变红了
+    assert.match(CSS, /\.ds-balance-bar\.is-low[\s\S]{0,400}--progErrorColor/, '低余额要能把整行染红');
+    assert.match(CSS, /\.ds-balance-bar\.is-error[\s\S]{0,400}--progErrorColor/, '失败态同理');
+
+    // 注：与输入行之间那条内嵌细线（.ds-balance-bar--inline::after）是可选的观感开关，
+    // 加不加都不影响上面这些约束，所以这里不断言它。
+
+    // 兜底挂载样式必须保留（#send_form 缺失时的退化外观）
+    assert.match(CSS, /\.ds-balance-bar--above/);
 });

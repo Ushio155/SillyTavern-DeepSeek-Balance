@@ -2,7 +2,9 @@
  * DOM 集成测试（jsdom，node --test）
  * =====================================================================
  * 把真实的 index.js 塞进一个"迷你酒馆 DOM"里跑起来，验证：
- *   - 余额条确实落在 #form_sheld 内、#send_form（输入框）之前 → 对话框左上方
+ *   - 余额行落在 #send_form（输入框那个框）内部、是框里的第一行 → 与输入行同框、压在它上方
+ *   - 输入行的原有结构（#file_form / #nonQRFormItems / #send_textarea）不被扰动
+ *   - 万一 #send_form 还没渲染，能退回 #form_sheld 顶部用独立小条样式，而不是整条挂不上
  *   - 设置面板是 ST 标准 inline-drawer 结构（可折叠，与其他扩展同款）
  *   - 走完"保存密钥 → 查询 → 渲染"全流程，数字落到两处界面元素上
  *   - 密钥永远不会出现在 DOM 里；Authorization 头只在真正请求时出现一次
@@ -18,6 +20,8 @@ const BALANCE_JSON = {
     balance_infos: [{ currency: 'CNY', total_balance: '12.22', granted_balance: '0.00', topped_up_balance: '12.22' }],
 };
 
+// 真实 index.html 的结构：#send_form 是 flex-wrap 容器，里面按 order 排
+// #file_form(0) → #qr--bar(1) → #nonQRFormItems(25)，余额行应该插成框内第一行。
 const HTML = `<!DOCTYPE html><html><body>
     <div id="extensions_settings"></div>
     <div id="extensions_settings2"></div>
@@ -34,6 +38,14 @@ const HTML = `<!DOCTYPE html><html><body>
     </div>
 </body></html>`;
 
+// 退化场景：#send_form 尚未渲染出来（真实 index.html 里是静态节点，正常不会发生）
+const HTML_NO_SEND_FORM = `<!DOCTYPE html><html><body>
+    <div id="extensions_settings"></div>
+    <div id="form_sheld">
+        <div id="dialogue_del_mes"></div>
+    </div>
+</body></html>`;
+
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const fakeResponse = (status, body) => ({
     ok: status >= 200 && status < 300,
@@ -46,7 +58,7 @@ let caseId = 0;
 
 /**
  * 起一个最小的"酒馆"，把 index.js 作为模块加载进去。
- * @param {{secretsStatus?: number, secretsValue?: string, balanceStatus?: number, balanceBody?: object}} opts
+ * @param {{secretsStatus?: number, secretsValue?: string, balanceStatus?: number, balanceBody?: object, html?: string}} opts
  */
 async function boot(opts = {}) {
     const {
@@ -54,9 +66,10 @@ async function boot(opts = {}) {
         secretsValue = SECRET,
         balanceStatus = 200,
         balanceBody = BALANCE_JSON,
+        html = HTML,
     } = opts;
 
-    const dom = new JSDOM(HTML, { url: 'http://127.0.0.1:8000/' });
+    const dom = new JSDOM(html, { url: 'http://127.0.0.1:8000/' });
     const { window } = dom;
 
     const calls = [];
@@ -123,16 +136,45 @@ async function boot(opts = {}) {
 // 用例 1：没配密钥时的挂载与外观
 // ---------------------------------------------------------------------------
 
-test('余额条落在 #form_sheld 内、#send_form 之前（对话框左上方）', async () => {
+test('余额行是 #send_form 内部的第一行（与输入行同一个框，压在它上方）', async () => {
     const h = await boot({ secretsStatus: 403 });
     try {
         const bar = h.id('ds_balance_bar');
-        assert.ok(bar, '余额条应已挂载');
-        assert.equal(bar.parentElement.id, 'form_sheld');
-        assert.equal(bar.nextElementSibling.id, 'send_form', '必须紧贴在输入框之前');
-        assert.ok(bar.className.includes('ds-balance-bar'));
+        assert.ok(bar, '余额行应已挂载');
+        assert.equal(bar.parentElement.id, 'send_form', '必须挂在输入框那个框内部，才谈得上"一体"');
+        assert.ok(bar.classList.contains('ds-balance-bar'));
+        assert.ok(bar.classList.contains('ds-balance-bar--inline'), '框内挂载要打上 inline 标记');
+        assert.ok(!bar.classList.contains('ds-balance-bar--above'), '两套放置样式不该同时挂上');
         assert.ok(bar.querySelector('.ds-balance-chip'), '应有余额徽标');
+
+        // 框内的排版顺序：余额行在最前，输入行仍在原位（余额行不该挤进输入行里）
+        assert.equal(bar, h.id('send_form').firstElementChild, '应是框内第一行');
         assert.ok(!bar.querySelector('#send_textarea'), '不能把输入框包进来');
+        assert.equal(bar.querySelectorAll('#nonQRFormItems, #send_textarea, #file_form').length, 0);
+        assert.equal(h.id('send_textarea').parentElement.id, 'nonQRFormItems', '输入行结构不能被扰动');
+
+        // 框内的其他行都还在原来那个父节点下，没被挪走
+        assert.equal(h.id('nonQRFormItems').parentElement.id, 'send_form');
+        assert.equal(h.id('file_form').parentElement.id, 'send_form');
+
+        // 挂载是幂等的：再触发一次 onEnable 也不该插出第二条
+        h.mod.onEnable();
+        assert.equal(h.document.querySelectorAll('#ds_balance_bar').length, 1);
+        assert.equal(h.id('ds_balance_bar'), bar);
+    } finally {
+        h.shutdown();
+    }
+});
+
+test('#send_form 还没渲染时退回 #form_sheld 顶部（独立小条样式），照样能用', async () => {
+    const h = await boot({ secretsStatus: 403, html: HTML_NO_SEND_FORM });
+    try {
+        const bar = h.id('ds_balance_bar');
+        assert.ok(bar, '退化场景下余额行也应挂上，而不是整条消失');
+        assert.equal(bar.parentElement.id, 'form_sheld');
+        assert.ok(bar.classList.contains('ds-balance-bar--above'), '框外挂载要打上 above 标记');
+        assert.ok(!bar.classList.contains('ds-balance-bar--inline'));
+        assert.ok(bar.querySelector('.ds-balance-chip'));
     } finally {
         h.shutdown();
     }
@@ -267,6 +309,25 @@ test('GENERATION_ENDED 触发的是防抖刷新，而不是立刻打接口', asy
 
         await sleep(2700);
         assert.equal(h.balanceCalls().length, before + 1, '防抖结束后应刷新一次');
+    } finally {
+        h.shutdown();
+    }
+});
+
+test('停用扩展后：在途请求的结果被丢弃，也不会再排下一轮', async () => {
+    const h = await boot({ secretsStatus: 403 });
+    try {
+        h.id('ds_balance_key').value = SECRET;
+        h.id('ds_balance_key_save').click();   // 保存后立刻触发一次查询
+        h.mod.onDisable();                     // 请求还飞在半路就停用
+        await sleep(50);
+        const after = h.balanceCalls().length;
+        assert.equal(h.document.getElementById('ds_balance_bar'), null, '停用后余额行应被拆掉');
+
+        // 停用后生成结束、页面切回可见，都不该再把轮询唤醒
+        h.fire('generation_ended');
+        await sleep(2700);
+        assert.equal(h.balanceCalls().length, after, '停用后不该再打接口（否则会一直偷偷轮询）');
     } finally {
         h.shutdown();
     }
