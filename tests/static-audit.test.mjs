@@ -16,6 +16,8 @@
  *   9) 全仓库不出现形如真实 API 密钥的字符串
  *  10) CSS 不引用外部资源（无 @import / 远程 url()）
  *  11) CSS 里"输入框里那一行"必须保持一体式（无独立底色），且状态色落在行本身而不是胶囊边框上
+ *  12) CSS 里窄屏适配不能被核心样式压掉：设置面板按钮必须覆盖 .menu_button 的 width:min-content，
+ *      详情弹窗的 min-width 必须写成 min(260px, 100%)
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -260,4 +262,27 @@ test('style.css：输入框里那一行必须保持"一体"，状态色不能只
 
     // 兜底挂载样式必须保留（#send_form 缺失时的退化外观）
     assert.match(CSS, /\.ds-balance-bar--above/);
+});
+
+test('style.css：窄屏适配——按钮不能被压成竖条、弹窗不能有硬性最小宽度', () => {
+    // 酒馆核心 .menu_button{width:min-content}（public/style.css:3825）对中文标签而言就是"一个字宽"：
+    // 按钮被压成约 27px 宽、文字逐字换行，四个字就是 27x92 的细长竖条（手机上尤其明显）。
+    // 实测：不写 fit-content 时 保存密钥 = 27x92（4.63 行文本），写上之后 = 72x29（1 行）。
+    const buttons = CSS.match(/\.ds-balance-panel-body\s+\.menu_button\s*\{[^}]*\}/);
+    assert.ok(buttons, '应有 .ds-balance-panel-body .menu_button 规则');
+    assert.match(buttons[0], /width:\s*fit-content/, '按钮宽度必须显式写 fit-content');
+    assert.match(buttons[0], /white-space:\s*nowrap/, '中文标签不能被逐字拆行');
+
+    // 标题栏刷新按钮同理：别指望 .menu_button_icon 的 fit-content 恰好排在核心 .menu_button 之后
+    const header = CSS.match(/\.ds-balance-header-refresh\s*\{[^}]*\}/);
+    assert.ok(header, '应有 .ds-balance-header-refresh 规则');
+    assert.match(header[0], /width:\s*fit-content/, '标题栏刷新按钮同样不能被压成竖条');
+
+    // 详情弹窗：min-width 必须是 min(..., 100%)。
+    // 写死 260px 时，320px 视口下 .popup-content 只有 258px 宽（酒馆的 .popup 是 width:min(500px,100dvw-2em)
+    // 再扣 14px*2 + 8px*2 内边距），而它是 overflow:hidden —— 实测 scrollWidth 276 > clientWidth 258，
+    // 右侧对齐的数值被裁掉。
+    const popup = CSS.match(/\.ds-balance-popup\s*\{[^}]*\}/);
+    assert.ok(popup, '应有 .ds-balance-popup 规则');
+    assert.match(popup[0], /min-width:\s*min\([^)]*100%\)/, '弹窗最小宽度必须跟随容器，不能是硬下限');
 });

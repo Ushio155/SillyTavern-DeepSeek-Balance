@@ -159,8 +159,10 @@
     border-radius: 3px;
 }
 
-/* 标题栏里的刷新按钮（menu_button 默认偏大，这里收紧） */
+/* 标题栏里的刷新按钮（menu_button 默认偏大，这里收紧；
+   宽度再显式写一遍，理由同上 —— 别依赖 .menu_button_icon 的 fit-content 恰好排在后面） */
 .ds-balance-header-refresh {
+    width: fit-content;
     padding: 0 6px;
     line-height: 1.4;
     font-size: 0.9em;
@@ -248,7 +250,11 @@
     flex-direction: column;
     gap: 8px;
     text-align: left;
-    min-width: 260px;
+    /* 260px 只是"想要"的宽度，不能是硬下限：酒馆弹窗是 width:min(500px, 100dvw-2em) 再扣掉
+       .popup 的 4px/14px 内边距和 .popup-content 的 8px 内边距，320px 视口下只剩 ~242px，
+       而 .popup-content 是 overflow:hidden —— 硬写 260px 时会横向溢出、右侧对齐的数值被裁掉。
+       min(260px, 100%) = 有地方就 260，没地方就跟随容器，窄屏不再溢出。 */
+    min-width: min(260px, 100%);
 }
 
 .ds-balance-popup h3 {
@@ -323,6 +329,17 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+/* 按钮宽度必须显式覆盖酒馆核心的 .menu_button{width:min-content}（public/style.css:3825）。
+   中文标签的 min-content 只有"一个字"宽，于是按钮被压成 ~27px、文字一个一个字竖着排 ——
+   就是手机上看到的"细长竖直长方形"。酒馆自带的扩展（translate / regex / expressions）
+   同样是靠 width:fit-content 修掉的，这里照做。
+   white-space:nowrap + flex:0 0 auto 是双保险：面板列再窄也不会把标签拆成竖排。 */
+.ds-balance-panel-body .menu_button {
+    width: fit-content;
+    white-space: nowrap;
+    flex: 0 0 auto;
 }
 
 .ds-balance-num {

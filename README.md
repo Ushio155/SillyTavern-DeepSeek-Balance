@@ -170,7 +170,7 @@ URL、`localStorage`。日志只保留 `console.warn/info`，且不打印任何�
 
 ## 测试
 
-59 项测试，零运行时依赖（只有开发期的 jsdom）：
+60 项测试，零运行时依赖（只有开发期的 jsdom）：
 
 ```bash
 npm install        # 装 jsdom（仅测试用）
@@ -181,7 +181,7 @@ npm run smoke      # 实网烟囱测试，需要环境变量 DEEPSEEK_API_KEY，
 | 文件 | 覆盖内容 |
 |---|---|
 | `tests/lib.test.mjs` | 密钥混淆往返、篡改检测、设置净化（含原型污染）、请求构造、响应规范化、错误分类、文本清洗、视图计算 |
-| `tests/static-audit.test.mjs` | 危险 sink 扫描（`eval` / `new Function` / `document.write` / `innerHTML` 插值）、fetch 目标白名单、`Authorization` 只出现一次且只在 `buildBalanceRequest` 里、日志纪律、`lib.js` 保持纯净、仓库里不得出现真实密钥或酒馆用户数据文件、CSS 不外链、CSS 里"框内那一行"保持一体式且状态色落在行本身 |
+| `tests/static-audit.test.mjs` | 危险 sink 扫描（`eval` / `new Function` / `document.write` / `innerHTML` 插值）、fetch 目标白名单、`Authorization` 只出现一次且只在 `buildBalanceRequest` 里、日志纪律、`lib.js` 保持纯净、仓库里不得出现真实密钥或酒馆用户数据文件、CSS 不外链、CSS 里"框内那一行"保持一体式且状态色落在行本身、窄屏适配不被核心样式压掉（设置面板按钮必须显式覆盖 `.menu_button` 的 `width:min-content`，否则中文标签被逐字压成竖条；详情弹窗的最小宽度必须是 `min(260px, 100%)`，否则窄屏右侧数值被裁） |
 | `tests/dom.test.mjs` | 在 jsdom 里真的加载 `index.js`：余额行位置（`#send_form` **内部第一行**，且输入行结构不被扰动）、`#send_form` 缺失时的兜底挂载、挂载幂等（重复 enable 不会插出两条）、抽屉结构符合 ST 折叠约定、保存密钥→查询→渲染全流程、密钥不进 DOM、生成结束防抖、停用后丢弃在途结果并不再轮询、标题栏刷新按钮不冒泡、错误文本不当成 HTML |
 
 `lib.js` 是纯函数层（不碰 DOM / 全局 / 网络），`index.js` 只做接线——这也是这些测试能覆盖到安全关键逻辑的原因。
